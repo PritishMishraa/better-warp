@@ -1,36 +1,44 @@
 # Better WARP
 
-Better WARP is a small native macOS menu-bar wrapper for Cloudflare WARP. It keeps Cloudflare's privileged WARP daemon in place and uses `warp-cli` to connect, disconnect, and read status.
+Better WARP is a lightweight macOS menu-bar app for Cloudflare WARP. It gives you a simple one-click way to connect or disconnect WARP without opening Cloudflare's larger desktop window.
 
-## What It Does
+## Who It Is For
 
-- Left-click the menu-bar icon to connect or disconnect WARP.
-- Right-click for status, refresh, login-item controls, official UI controls, and quit.
-- Optionally replace Cloudflare's menu-bar UI without disabling the WARP daemon.
-- Fall back to opening the official app when `warp-cli` status is unavailable.
+Better WARP is for people who already use Cloudflare WARP and mostly need a fast menu-bar toggle. It does not replace Cloudflare's VPN service, account settings, device registration, DNS settings, or network policy controls.
 
-## Build
+## How It Works
 
-```bash
-swift build
-bash Scripts/test.sh
-bash Scripts/build-app.sh
-```
+- Left-click the Better WARP menu-bar icon to connect or disconnect.
+- Right-click the icon to see status, refresh, startup options, and quit.
+- If Better WARP cannot read WARP status, it offers to open the official Cloudflare WARP app.
+- Cloudflare's background WARP service stays installed and in control of networking.
 
-The app bundle is written to `dist/Better WARP.app`.
+## Important Note
 
-## Install
+Better WARP controls the official Cloudflare WARP service. You still need Cloudflare WARP installed and working on your Mac.
+
+## Install From Source
+
+This repository currently builds the app locally.
 
 ```bash
 bash Scripts/install-app.sh
 ```
 
-To remove Better WARP and restore Cloudflare's menu-bar UI:
+The app is installed as:
+
+```text
+/Applications/Better WARP.app
+```
+
+## Remove
+
+To remove Better WARP and restore Cloudflare's normal menu-bar app:
 
 ```bash
 bash Scripts/uninstall-app.sh
 ```
 
-## Notes
+## Troubleshooting
 
-Better WARP intentionally stays narrow: it provides a fast menu-bar toggle and status display while Cloudflare WARP remains responsible for networking, DNS, routing, registration, and policy.
+If the app appears to do nothing, open the official Cloudflare WARP app first and make sure it is signed in and working. Better WARP depends on Cloudflare's installed WARP tools.
