@@ -2,6 +2,7 @@ import AppKit
 import BetterWarpCore
 import Foundation
 import ServiceManagement
+import QuartzCore
 
 private let officialLoginLauncher = "com.cloudflare.1dot1dot1dot1.macos.loginlauncherapp"
 private let officialBundleID = "com.cloudflare.1dot1dot1dot1.macos"
@@ -12,7 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let warp = WarpCLI()
     private let replacement = OfficialUIReplacement()
     private let loginItem = LoginItemManager()
-    private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+    private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private var status = WarpStatus.unknown("Starting")
     private var statusTimer: Timer?
     private var replacementTimer: Timer?
@@ -22,7 +23,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppLog.write("Application launched")
         NSApp.setActivationPolicy(.accessory)
         UserDefaults.standard.register(defaults: [
-            "replaceOfficialUI": false,
             "startAtLogin": true
         ])
 
@@ -30,7 +30,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         syncLoginItem()
         refreshStatus()
 
-        if replaceOfficialUI {
+        if !hasShownFirstRunAlert {
+            showFirstRunAlert()
+        } else if replaceOfficialUI {
             Task.detached { [replacement] in
                 replacement.disableAndQuitOfficialUI()
             }
@@ -68,11 +70,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         set { UserDefaults.standard.set(newValue, forKey: "startAtLogin") }
     }
 
+    private var hasShownFirstRunAlert: Bool {
+        get { UserDefaults.standard.bool(forKey: "hasShownFirstRunAlert") }
+        set { UserDefaults.standard.set(newValue, forKey: "hasShownFirstRunAlert") }
+    }
+
     private func configureStatusButton() {
         guard let button = statusItem.button else { return }
         button.target = self
         button.action = #selector(statusButtonPressed(_:))
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        button.wantsLayer = true
         render()
     }
 
@@ -269,9 +277,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let button = statusItem.button else { return }
         button.image = MenuBarIcon.image(for: status)
         button.imagePosition = .imageLeft
-        button.title = ""
+        button.title = status.shortTitle
+        button.font = NSFont.menuBarFont(ofSize: 0)
         button.toolTip = status.toolTip
-        button.contentTintColor = status.usesBundledIcon ? nil : status.tintColor
+        button.contentTintColor = status.isAlert ? status.tintColor : nil
+
+        if status.isTransitioning {
+            startPulseAnimation()
+        } else {
+            stopPulseAnimation()
+        }
+    }
+
+    private func startPulseAnimation() {
+        guard let layer = statusItem.button?.layer else { return }
+        let pulse = CABasicAnimation(keyPath: "opacity")
+        pulse.fromValue = 1.0
+        pulse.toValue = 0.4
+        pulse.duration = 0.7
+        pulse.autoreverses = true
+        pulse.repeatCount = .infinity
+        pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        layer.add(pulse, forKey: "pulse")
+    }
+
+    private func stopPulseAnimation() {
+        statusItem.button?.layer?.removeAnimation(forKey: "pulse")
+    }
+
+    private func showFirstRunAlert() {
+        let alert = NSAlert()
+        alert.messageText = "Replace Official Cloudflare WARP UI?"
+        alert.informativeText = "Better WARP can disable Cloudflare's official menu-bar app and take its place, giving you a lightweight native toggle. The WARP networking daemon stays running. You can always restore the official UI later from the menu."
+        alert.addButton(withTitle: "Replace Official UI")
+        alert.addButton(withTitle: "Keep Both")
+        alert.alertStyle = .informational
+
+        let response = alert.runModal()
+        replaceOfficialUI = (response == .alertFirstButtonReturn)
+        hasShownFirstRunAlert = true
+
+        if replaceOfficialUI {
+            Task.detached { [replacement] in
+                replacement.disableAndQuitOfficialUI()
+            }
+        }
     }
 }
 
@@ -354,6 +404,24 @@ private extension WarpStatus {
         case .connected, .disconnected:
             return true
         case .connecting, .disconnecting, .unavailable, .unknown:
+            return false
+        }
+    }
+
+    var isAlert: Bool {
+        switch self {
+        case .unavailable, .unknown:
+            return true
+        default:
+            return false
+        }
+    }
+
+    var isTransitioning: Bool {
+        switch self {
+        case .connecting, .disconnecting:
+            return true
+        default:
             return false
         }
     }
