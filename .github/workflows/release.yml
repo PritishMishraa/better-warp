@@ -1,0 +1,98 @@
+name: Release Application
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, for example 0.1.0"
+        required: true
+        type: string
+      build:
+        description: "Build number"
+        required: false
+        default: "1"
+        type: string
+      draft:
+        description: "Create the GitHub release as a draft"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and Publish macOS App
+    runs-on: macos-15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Resolve release metadata
+        id: metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            tag="${GITHUB_REF_NAME}"
+            version="${tag#v}"
+            draft="false"
+          else
+            version="${{ inputs.version }}"
+            tag="v${version}"
+            draft="${{ inputs.draft }}"
+          fi
+
+          build="${{ inputs.build }}"
+          if [[ -z "$build" ]]; then
+            build="${GITHUB_RUN_NUMBER}"
+          fi
+
+          {
+            echo "tag=$tag"
+            echo "version=$version"
+            echo "build=$build"
+            echo "draft=$draft"
+            echo "archive_name=Better-WARP-${version}-macOS.zip"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run tests
+        run: bash Scripts/test.sh
+
+      - name: Build app bundle
+        env:
+          BETTER_WARP_VERSION: ${{ steps.metadata.outputs.version }}
+          BETTER_WARP_BUILD: ${{ steps.metadata.outputs.build }}
+          BETTER_WARP_BUNDLE_ID: ${{ vars.BETTER_WARP_BUNDLE_ID || 'local.better-warp.app' }}
+          BETTER_WARP_SIGN_IDENTITY: ${{ secrets.BETTER_WARP_SIGN_IDENTITY || '-' }}
+          BETTER_WARP_NOTARIZE: ${{ secrets.BETTER_WARP_NOTARIZE || '0' }}
+        run: bash Scripts/build-app.sh
+
+      - name: Verify app bundle
+        run: |
+          set -euo pipefail
+          codesign --verify --deep --strict "dist/Better WARP.app"
+          spctl --assess --type execute --verbose=4 "dist/Better WARP.app" || true
+
+      - name: Create release archive
+        run: |
+          set -euo pipefail
+          ditto -c -k --keepParent "dist/Better WARP.app" "dist/${{ steps.metadata.outputs.archive_name }}"
+          shasum -a 256 "dist/${{ steps.metadata.outputs.archive_name }}" > "dist/${{ steps.metadata.outputs.archive_name }}.sha256"
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.metadata.outputs.tag }}
+          name: Better WARP ${{ steps.metadata.outputs.version }}
+          draft: ${{ steps.metadata.outputs.draft }}
+          generate_release_notes: true
+          files: |
+            dist/${{ steps.metadata.outputs.archive_name }}
+            dist/${{ steps.metadata.outputs.archive_name }}.sha256
