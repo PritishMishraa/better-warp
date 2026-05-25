@@ -1,0 +1,2 @@
+Kept original and generated white/outline variants from status-icon-image-128pt@2x.png
+- status-icon-image-128pt@2x-translucent.png
