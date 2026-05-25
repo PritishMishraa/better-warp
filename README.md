@@ -13,9 +13,9 @@ Better WARP is for people who already use Cloudflare WARP and mostly need a fast
 - If Better WARP cannot read WARP status, it offers to open the official Cloudflare WARP app.
 - Cloudflare's background WARP service stays installed and in control of networking.
 
-## Important Note
-
-Better WARP controls the official Cloudflare WARP service. You still need Cloudflare WARP installed and working on your Mac.
+> [!IMPORTANT]
+> Better WARP is not affiliated with, endorsed by, sponsored by, or in any way related to Cloudflare.
+> Better WARP controls the official Cloudflare WARP service. You still need Cloudflare WARP installed and working on your Mac.
 
 ## Install From Source
 
